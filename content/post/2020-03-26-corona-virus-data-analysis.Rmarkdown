@@ -1,0 +1,335 @@
+---
+title: Corona virus data analysis
+author: Oscar Toro
+date: '2020-03-26'
+slug: corona-virus-data-analysis
+categories:
+  - Health Economics
+  - Econometrics
+  - Forecasting
+tags:
+  - Health
+  - Economics
+  - Corona
+  - Forecasting
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2020-03-26T21:11:49+11:00'
+featured: no
+image:
+  caption: ''
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+Interest in the development of the Corona Virus and its impact on the world has increased as it has affected almost everyone in the world. In this article I will perform some analysis on the cases, how they have been progressing and what is the outlook for the world by using statistical techniques.
+
+```{r Libraries, include= FALSE}
+library(ggplot2) #graphing
+library(dplyr) #data manipulation
+library(tidyr) #data manipulation
+library(lubridate) #date manipulation
+library(stringr) #manipulate strings
+library(xts) #manipulate ts
+library(fpp2) #comprehensive forecasting library
+library(quantmod) #import financial data
+library(dynlm) #model regression
+library(urca) #for unit root tests
+```
+
+```{r load data, include = FALSE}
+#We download the corona virus data from JHU repository on github
+corona_virus <- list(cases = read.csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"),
+                     deaths = read.csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv"),
+                     recovered = read.csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv"))
+
+#Data can be downloaded from: https://population.un.org/wpp/Download/Files/1_Indicators%20(Standard)/CSV_FILES/WPP2019_TotalPopulationBySex.csv
+#It takes quite long to do this download so I am loading this data from my computer
+
+corona_virus[["country_information"]] <- read.csv("C:/Users/Samara/Documents/world_population.csv", header=TRUE, stringsAsFactors=FALSE)
+```
+
+```{r Data manipulation, include = FALSE}
+head(corona_virus$cases)
+
+#Do some basic data manipulation to get the data in order
+corona_virus$cases <- corona_virus$cases %>%
+  gather(key = "Date", value = "Cases", -c(1,2,3,4)) %>% #Create date index (see dataset w/o this to understand)
+  mutate(Date = parse_date_time(str_remove(Date,"X"), "m.d.y"), #get dates in correct format
+         ID = paste0(Date, Country.Region, "-", Province.State)) #Create unique ID per observation
+
+#Repeat this for deaths and cases
+corona_virus$deaths <- corona_virus$deaths %>%
+  gather(key = "Date", value = "Cases", -c(1,2,3,4)) %>% #Create date index (see dataset w/o this to understand)
+  mutate(Date = parse_date_time(str_remove(Date,"X"), "m.d.y"), #get dates in correct format
+         ID = paste0(Date, Country.Region, "-", Province.State)) #Create unique ID per observation
+
+#And repeat for recovered
+corona_virus$recovered <- corona_virus$recovered %>%
+  gather(key = "Date", value = "Cases", -c(1,2,3,4)) %>% #Create date index (see dataset w/o this to understand)
+  mutate(Date = parse_date_time(str_remove(Date,"X"), "m.d.y"), #get dates in correct format
+         ID = paste0(Date, Country.Region, "-", Province.State)) #province/state index is different for some reason
+
+#Merge everything and present it as a dataframe
+corona_virus$main <- inner_join(corona_virus$cases,
+                                corona_virus$deaths[,c(6,7)],
+                                by = "ID") %>%
+  inner_join(corona_virus$recovered[,c(6,7)], 
+                                    by = "ID")
+
+#Reorder the dataframe
+corona_virus$main <- corona_virus$main[,c(5,2,1,3,4,6,8,9)]
+
+#rename the last columns
+corona_virus$main <- corona_virus$main %>%
+  rename("cases" = Cases.x,
+         "deaths" = Cases.y,
+         "recovered" = Cases)
+```
+
+## Global outlook
+
+Up to today's date, 174 countries have presented **corona** virus cases. This roughly represents 89% of the whole world.
+
+```{r number of countries, echo = FALSE, comment = NA}
+#How many countries in the world have been affected by corona virus?
+#Get a date index
+date_index <- unique(corona_virus$main$Date)
+#Define variables
+countries_ts <- NULL
+x <- NULL
+
+#Compute number of countries affected by corona virus daily
+for (i in 1:length(date_index)){
+  x <- corona_virus$main %>%
+        filter(Date == as.Date(date_index[i]), cases != 0)
+  x <- length(unique(x$Country.Region))
+  countries_ts <- c(countries_ts, x)
+}
+
+#Add the dates to the dataframe
+countries_ts <- data.frame(date = date_index, number_countries = countries_ts)
+countries_ts$percentage <- countries_ts$number_countries/195
+
+#Plot it
+par(mfrow=c(2,1))
+
+ggplot(countries_ts, aes(x = date, y = number_countries)) +
+  geom_point() +
+  geom_smooth(method = "loess", se = F, col = "red") +
+  labs(title = "Number of countries affected by COVID",
+       y = "Number of countries",
+       x = "Date",
+       caption = "Source: JHU Dataset")
+  
+ggplot(countries_ts, aes(x = date, y = percentage)) +
+  geom_bar(stat = "identity") +
+  geom_smooth(method = "loess", se = F, col = "red") +
+  labs(title = "Percentage of thw world affected by COVID",
+       y = "World percentage (%)",
+       x = "Date",
+       caption = "Source: JHU Dataset")
+```
+
+```{r clean social variables, echo = FALSE, include = FALSE}
+#See countries identified in the Corona virus Dataset
+countries_corona <- as.character(unique(corona_virus$main$Country.Region))
+#See countries in global dataset
+countries_global <- as.character(unique(corona_virus$country_information$Location))
+
+#check which countries from the corona virus dataset are contained within the global dataset
+#We determine two vectors to work with
+validate <- NULL
+countries_error <- NULL
+
+#Then we see which countries from the corona virus dataset are included in the global dataset.
+#We create a function for this (as it appears we will use it a lot)
+
+countries_missing <- function(){
+  validate <- NULL
+  countries_error <- NULL
+  countries_global <- unique(corona_virus$country_information$Location)
+
+  for (i in 1:length(countries_corona)){ #For the entire dataset
+    validate <- (countries_corona[i] %in% countries_global) #see if one country is contained in the other list
+    countries_error <- c(countries_error, validate) #then add this value into another vector.
+  }
+  #get the errors index
+  errors <- which(!countries_error)
+
+  #We see that 19 countries are not being recognized
+  print(paste0(length(countries_corona[errors])," countries are missing"))
+  print("--------------------------------------------------- ")
+  print(countries_corona[errors])
+  return(errors)
+}
+
+
+
+#We proceed to see which countries we are talking about, Diamond Princess is present which is not a country, We might have to look at individal cases as well.
+countries_missing()
+errors_index <- countries_missing()
+#Now, we write a small formula to see if we can automate the recognition process
+for (i in errors_index){
+  if(sum(str_detect(countries_global, countries_corona[i])) == 1){
+    validate <- as.character(countries_corona[i])
+    change <- countries_global[(which(str_detect(countries_global, countries_corona[i])))]
+    corona_virus$country_information$Location <- str_replace(corona_virus$country_information$Location, change, validate)
+  }
+}
+
+#Now we run the validation again, where we see we are still missing 13 countries.
+countries_missing()
+
+#At this point, we will just manually change country per country
+
+countries_corona
+
+#Bolivia
+index <- which(str_detect(countries_global, "Bolivia"))
+countries_global[index]
+index2 <- which(corona_virus$country_information$Location == countries_global[index])
+corona_virus$country_information$Location[index2] <- "Bolivia"
+
+#Congo(Brazzaville) -> Republic of Congo
+#Congo (Kinshasa) -> Congo
+index <- which(str_detect(countries_global, "Congo"))
+countries_global[index]
+index2 <- which(corona_virus$country_information$Location == countries_global[index[1]])
+corona_virus$country_information$Location[index2] <- "Congo (Kinshasa)"
+
+countries_global[index]
+index2 <- which(corona_virus$country_information$Location == countries_global[index[2]])
+corona_virus$country_information$Location[index2] <- "Congo (Brazzaville)"
+
+#Cote d'Ivoire
+index <- which(str_detect(countries_global, "CÃ´te d'Ivoire"))
+countries_global[index]
+index2 <- which(corona_virus$country_information$Location == countries_global[index])
+corona_virus$country_information$Location[index2] <- "Cote d'Ivoire"
+
+#Iran
+index <- which(str_detect(countries_global, "Iran"))
+countries_global[index]
+index2 <- which(corona_virus$country_information$Location == countries_global[index])
+corona_virus$country_information$Location[index2] <- "Iran"
+
+#South Korea
+index <- which(str_detect(countries_global, "Korea"))
+countries_global[index][2]
+index2 <- which(corona_virus$country_information$Location == countries_global[index][2])
+corona_virus$country_information$Location[index2] <- "Korea, South"
+
+#US
+index <- which(str_detect(countries_global, "United States of A"))
+countries_global[index]
+index2 <- which(corona_virus$country_information$Location == countries_global[index])
+corona_virus$country_information$Location[index2] <- "US"
+
+#Venezuela
+index <- which(str_detect(countries_global, "Venezuela"))
+countries_global[index]
+index2 <- which(corona_virus$country_information$Location == countries_global[index])
+corona_virus$country_information$Location[index2] <- "Venezuela"
+
+#Vietnam
+index <- which(str_detect(countries_global, "Viet"))
+countries_global[index]
+index2 <- which(corona_virus$country_information$Location == countries_global[index])
+corona_virus$country_information$Location[index2] <- "Vietnam"
+
+#West Bank and Gaza, I just named it Palestine. This could be wrong though
+index <- which(str_detect(countries_global, "Palest"))
+countries_global[index]
+index2 <- which(corona_virus$country_information$Location == countries_global[index])
+corona_virus$country_information$Location[index2] <- "West Bank and Gaza"
+
+#Laos
+index <- which(str_detect(countries_global, "Lao"))
+countries_global[index]
+index2 <- which(corona_virus$country_information$Location == countries_global[index])
+corona_virus$country_information$Location[index2] <- "Laos"
+
+#I am removing Kosovo from country-level analysis.
+
+#Burma
+index <- which(str_detect(countries_global, "Myanmar"))
+countries_global[index]
+index2 <- which(corona_virus$country_information$Location == countries_global[index])
+corona_virus$country_information$Location[index2] <- "Burma"
+
+#We are only missing Diamond princess cruise and Kosovo. This is fine
+countries_missing()
+```
+
+```{r add social variables, echo = FALSE, include = FALSE}
+#Get relevant information
+corona_virus$country_information_2020 <- corona_virus$country_information %>%
+  filter(Time == 2020,
+         Variant == "Medium" | Variant == "Constant mortality")
+
+#Merge it with main information
+corona_virus$main_and_social <- corona_virus$country_information_2020 %>%
+  filter(Variant == "Medium") %>%
+  select(Location, PopMale, PopFemale, PopTotal, PopDensity) %>%
+  right_join(corona_virus$main, by = c("Location" = "Country.Region"))
+
+#See which countries have NA values
+index <- which(is.na(corona_virus$main_and_social$PopTotal))
+unique(corona_virus$main_and_social$Location[index])
+
+#Of course it is Kosovo and Diamond Princess. We can manually add their populations. See sources.
+
+#Diamong Princess. Source: https://www.princess.com/news/notices_and_advisories/notices/diamond-princess-update.html
+cruise_total_pop <- 2666 + 1045
+index <- which(corona_virus$main_and_social$Location == "Diamond Princess")
+corona_virus$main_and_social[index,"PopTotal"] <- cruise_total_pop
+
+#Kosovo population. Source: https://countrymeters.info/en/Kosovo
+kosovo_population <- 1810366/1000
+index <- which(corona_virus$main_and_social$Location == "Kosovo")
+corona_virus$main_and_social[index,"PopTotal"] <- kosovo_population
+
+#We check again and we have no countries without no total population
+index <- which(is.na(corona_virus$main_and_social$PopTotal))
+unique(corona_virus$main_and_social$Location[index])
+
+#Finally, we rename the variables
+corona_virus$main_and_social <- corona_virus$main_and_social %>%
+  rename(pop_male_country = PopMale,
+         pop_female_country = PopFemale,
+         density_country = PopDensity,
+         population_country = PopTotal)
+```
+
+
+
+
+```{r cases}
+corona_virus$global_ts <- corona_virus$main_and_social %>%
+  group_by(Date) %>%
+  summarize(total_cases = sum(cases),
+            total_deaths = sum(deaths),
+            total_recovered = sum(recovered)) %>%
+  gather(key = "Incident", value = "obs", -Date)
+
+ggplot(corona_virus$global_ts, aes(x = Date, y = obs, col = Incident)) +
+  geom_line() +
+  geom_point()
+```
+
+
+
+
+
+Sources:
+
+Corona Virus Data: https://github.com/CSSEGISandData/COVID-19.
+Diamond Cruise information: https://www.princess.com/news/notices_and_advisories/notices/diamond-princess-update.html
+Kosovo population: https://countrymeters.info/en/Kosovo
+
+
+
+
