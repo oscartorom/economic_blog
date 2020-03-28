@@ -42,24 +42,23 @@ Up to today's date, 174 countries have presented **corona** virus cases. This ro
 
 
 
+Additionally, the number of cases has been increasing exponentially all over the globe, almost reaching 600,000 confirmed cases up to today.
+
+<img src="/post/2020-03-26-corona-virus-data-analysis_files/figure-html/total cases-1.png" width="672" />
+
+It can be observed as well that daily ocurrences have increased significantlly, having over 60,000 new detected cases daily in the world.
+
+<img src="/post/2020-03-26-corona-virus-data-analysis_files/figure-html/daily cases-1.png" width="672" />
+
+This is quite alarming as we can see an increase in outliers, days where over 30,000 cases are detected.
+
+<img src="/post/2020-03-26-corona-virus-data-analysis_files/figure-html/daily cases histogram-1.png" width="672" />
 
 
 
 
-```r
-corona_virus$global_ts <- corona_virus$main_and_social %>%
-  group_by(Date) %>%
-  summarize(total_cases = sum(cases),
-            total_deaths = sum(deaths),
-            total_recovered = sum(recovered)) %>%
-  gather(key = "Incident", value = "obs", -Date)
+<img src="/post/2020-03-26-corona-virus-data-analysis_files/figure-html/percentage analysis-1.png" width="672" /><img src="/post/2020-03-26-corona-virus-data-analysis_files/figure-html/percentage analysis-2.png" width="672" />
 
-ggplot(corona_virus$global_ts, aes(x = Date, y = obs, col = Incident)) +
-  geom_line() +
-  geom_point()
-```
-
-<img src="/post/2020-03-26-corona-virus-data-analysis_files/figure-html/cases-1.png" width="672" />
 
 
 
@@ -68,7 +67,9 @@ ggplot(corona_virus$global_ts, aes(x = Date, y = obs, col = Incident)) +
 Sources:
 
 Corona Virus Data: https://github.com/CSSEGISandData/COVID-19.
+
 Diamond Cruise information: https://www.princess.com/news/notices_and_advisories/notices/diamond-princess-update.html
+
 Kosovo population: https://countrymeters.info/en/Kosovo
 
 

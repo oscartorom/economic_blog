@@ -122,7 +122,7 @@ ggplot(countries_ts, aes(x = date, y = number_countries)) +
   labs(title = "Number of countries affected by COVID",
        y = "Number of countries",
        x = "Date",
-       caption = "Source: JHU Dataset")
+       caption = "Data source: JHU Dataset, Own elaboration")
   
 ggplot(countries_ts, aes(x = date, y = percentage)) +
   geom_bar(stat = "identity") +
@@ -130,7 +130,7 @@ ggplot(countries_ts, aes(x = date, y = percentage)) +
   labs(title = "Percentage of thw world affected by COVID",
        y = "World percentage (%)",
        x = "Date",
-       caption = "Source: JHU Dataset")
+       caption = "Data source: JHU Dataset, Own elaboration")
 ```
 
 ```{r clean social variables, echo = FALSE, include = FALSE}
@@ -304,10 +304,9 @@ corona_virus$main_and_social <- corona_virus$main_and_social %>%
          population_country = PopTotal)
 ```
 
+Additionally, the number of cases has been increasing exponentially all over the globe, almost reaching 600,000 confirmed cases up to today.
 
-
-
-```{r cases}
+```{r total cases, echo = FALSE}
 corona_virus$global_ts <- corona_virus$main_and_social %>%
   group_by(Date) %>%
   summarize(total_cases = sum(cases),
@@ -315,10 +314,148 @@ corona_virus$global_ts <- corona_virus$main_and_social %>%
             total_recovered = sum(recovered)) %>%
   gather(key = "Incident", value = "obs", -Date)
 
-ggplot(corona_virus$global_ts, aes(x = Date, y = obs, col = Incident)) +
+p <- ggplot(corona_virus$global_ts, aes(x = Date, y = obs, col = Incident)) +
   geom_line() +
-  geom_point()
+  geom_point() +
+  scale_color_discrete(name = "Incident",
+                       breaks = c("total_cases", "total_deaths", "total_recovered"),
+                       labels = c("Cases", "Deaths", "Recovered")) +
+  labs(title = "Evolution of COVID through time",
+       y = "Ocurrences",
+       x = "Date",
+       caption = "Data source: JHU Dataset, Own elaboration")
+
+p + 
+  scale_y_continuous(labels = function(x) format(x, scientific = FALSE)) +
+  geom_vline(xintercept = as.POSIXct("2020-03-22"), linetype = "dotted")
 ```
+
+It can be observed as well that daily ocurrences have increased significantlly, having over 60,000 new detected cases daily in the world.
+
+```{r daily cases, echo = FALSE, message = FALSE}
+#Compute daily ocurrences
+corona_virus$global_ts$daily_obs <- 0
+
+# I could do this with DPLYR - group by Incident, then take diffs...
+for (i in c("total_cases", "total_deaths", "total_recovered")){
+  index <- which(corona_virus$global_ts$Incident == i)
+  corona_virus$global_ts$daily_obs[index[1]] <- corona_virus$global_ts$obs[index[1]]
+  for(j in index){
+    if(j == nrow(corona_virus$global_ts)){break}
+    else {corona_virus$global_ts$daily_obs[j + 1] <- corona_virus$global_ts$obs[j + 1] - corona_virus$global_ts$obs[j]}
+  }
+}
+#plot daily ocurrences
+p <- ggplot(corona_virus$global_ts, aes(x = Date, y = daily_obs, col = Incident)) +
+  geom_line() +
+  geom_point() +
+  scale_color_discrete(name = "Incident",
+                       breaks = c("total_cases", "total_deaths", "total_recovered"),
+                       labels = c("Daily cases", "Daily deaths", "Daily recoveries")) +
+  labs(title = "Daily COVID incidents",
+       y = "Ocurrences",
+       x = "Date",
+       caption = "Data source: JHU Dataset, Own elaboration")
+
+p + 
+  scale_y_continuous(labels = function(x) format(x, scientific = FALSE)) +
+  geom_vline(xintercept = as.POSIXct("2020-03-22"), linetype = "dotted")
+```
+
+This is quite alarming as we can see an increase in outliers, days where over 30,000 cases are detected.
+
+```{r daily cases histogram, echo = FALSE, message = FALSE}
+
+#daily ocurrences histogram
+breaks <- c(0,5000,10000,20000,30000,40000,50000,60000)
+
+corona_virus$global_ts %>%
+  filter(Incident == "total_cases") %>%
+  ggplot(aes(x = daily_obs)) +
+  geom_histogram(binwidth = 1000,
+                 colour = "black",
+                 fill = "white") +
+  scale_x_continuous(breaks = breaks) +
+  scale_y_continuous(breaks = seq(0, 20, by = 1)) +
+  labs(title = "Distribution of daily COVID incidents",
+       y = "Days",
+       x = "Number of cases",
+       caption = "Data source: JHU Dataset, Own elaboration") +
+  geom_hline(yintercept = 1, color = "red", alpha = 0.5, linetype = "dashed")
+```
+
+```{r daily cases per country, echo = FALSE, message = FALSE, include = FALSE}
+#This is for our own analysis, but it might not be important to publish
+
+corona_virus$country_aggregates <- corona_virus$main_and_social %>%
+  group_by(Location,Date) %>%
+  summarize(country_cases = sum(cases),
+            country_deaths = sum(deaths),
+            country_recovered = sum(recovered))
+  
+corona_virus$country_aggregates <- corona_virus$country_aggregates %>%
+  group_by(Location) %>%
+  mutate(daily_cases = country_cases - lag(country_cases),
+         daily_deaths = country_deaths - lag(country_deaths),
+         daily_recover = country_recovered - lag(country_recovered))
+
+
+breaks <- c(0, 500, 1000, 2000, 3000, 5000, 10000, 15000)
+  
+corona_virus$country_aggregates %>%
+  filter(country_cases != 0) %>%
+  ggplot(aes(x = daily_cases)) +
+  geom_histogram(aes(y = ..density..),
+                 binwidth = 500,
+                 colour = "black",
+                 fill = "white") +
+  scale_x_continuous(breaks = breaks) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+
+
+```
+
+
+```{r percentage analysis, echo = FALSE}
+#Create all variables
+corona_virus$country_aggregates <- corona_virus$country_aggregates %>%
+  group_by(Date) %>%
+  mutate(total_daily_cases = sum(daily_cases),
+         total_daily_deaths = sum(daily_deaths),
+         total_daily_recover = sum(daily_recover),
+         total_cases = sum(country_cases),
+         total_deaths = sum(country_deaths),
+         total_recovered = sum(country_recovered)) %>%
+  ungroup() %>%
+  mutate(perc_daily_case = daily_cases/total_daily_cases,
+         perc_daily_deaths = daily_deaths/total_daily_deaths,
+         perc_daily_recover = daily_recover/total_daily_recover,
+         perc_total_case = country_cases/total_cases,
+         perc_total_deaths = country_deaths/total_deaths,
+         perc_total_recovered = country_recovered/total_recovered)
+  
+country_cum_percentages <- corona_virus$country_aggregates %>%
+  group_by(Location, Date) %>%
+  arrange(desc(Date), desc(perc_total_case))
+
+#See top latest countries infected by COVID (80% of the distribution)
+x <- country_cum_percentages %>%
+  mutate(perc_increase = cumsum(perc_total_case),
+         classification = ifelse(perc_total_case > 0.05, Location, "Rest of the world"))
+
+x %>%
+  ggplot(aes(x = Date, y =  country_cases, fill = classification)) +
+  geom_bar(stat = "identity")
+  
+x %>%
+  ggplot(aes(x = Date, y =  perc_total_case, fill = classification)) +
+  geom_bar(stat = "identity")
+
+
+  
+```
+
 
 
 
@@ -327,7 +464,9 @@ ggplot(corona_virus$global_ts, aes(x = Date, y = obs, col = Incident)) +
 Sources:
 
 Corona Virus Data: https://github.com/CSSEGISandData/COVID-19.
+
 Diamond Cruise information: https://www.princess.com/news/notices_and_advisories/notices/diamond-princess-update.html
+
 Kosovo population: https://countrymeters.info/en/Kosovo
 
 
