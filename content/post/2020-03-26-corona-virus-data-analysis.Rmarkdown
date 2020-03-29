@@ -451,12 +451,63 @@ x %>%
 x %>%
   ggplot(aes(x = Date, y =  perc_total_case, fill = classification)) +
   geom_bar(stat = "identity")
-
-
-  
 ```
 
 
+
+```{r country cases evolution, echo = FALSE}
+x %>%
+  filter(Location %in% unique(x$classification)) %>%
+  ggplot(aes(x = Date, y =  country_cases, col = Location)) +
+  geom_line(size = 1.2)
+```
+
+```{r as % of country population, echo = FALSE}
+#Merge X with social data
+x.2 <- corona_virus$country_information_2020 %>%
+  filter(Variant == "Medium") %>%
+  select(Location, PopMale, PopFemale, PopTotal, PopDensity) %>%
+  right_join(x, by = c("Location"))
+
+#Diamong Princess. Source: https://www.princess.com/news/notices_and_advisories/notices/diamond-princess-update.html
+cruise_total_pop <- 2666 + 1045
+index <- which(x.2$Location == "Diamond Princess")
+x.2[index,"PopTotal"] <- cruise_total_pop
+
+#Kosovo population. Source: https://countrymeters.info/en/Kosovo
+kosovo_population <- 1810366/1000
+index <- which(x.2$Location == "Kosovo")
+x.2[index,"PopTotal"] <- kosovo_population
+
+#Finally, we rename the variables
+x.2 <- x.2 %>%
+  rename(pop_male_country = PopMale,
+         pop_female_country = PopFemale,
+         density_country = PopDensity,
+         population_country = PopTotal) %>%
+  mutate(perc_cases_country = country_cases/population_country)
+         
+  
+#Compute % of cases per population
+x.2 %>%
+  filter(Location %in% unique(x$classification)) %>%
+  ggplot(aes(x = Date, y =  perc_cases_country, col = Location)) +
+  geom_line(size = 1.2)
+```
+
+# Predictions
+
+```{r}
+#Global forecast
+#plot how countries with over 1000 cases are going
+x.2 %>%
+  filter(country_cases > 1000) %>%
+  ggplot(aes(x = Date, y =  country_cases, col = Location)) +
+  geom_line(size = 1.2) +
+  theme(legend.position = "none")
+
+
+```
 
 
 

@@ -61,6 +61,25 @@ This is quite alarming as we can see an increase in outliers, days where over 30
 
 
 
+<img src="/post/2020-03-26-corona-virus-data-analysis_files/figure-html/country cases evolution-1.png" width="672" />
+
+<img src="/post/2020-03-26-corona-virus-data-analysis_files/figure-html/as % of country population-1.png" width="672" />
+
+# Predictions
+
+
+```r
+#Global forecast
+#plot how countries with over 1000 cases are going
+x.2 %>%
+  filter(country_cases > 1000) %>%
+  ggplot(aes(x = Date, y =  country_cases, col = Location)) +
+  geom_line(size = 1.2) +
+  theme(legend.position = "none")
+```
+
+<img src="/post/2020-03-26-corona-virus-data-analysis_files/figure-html/unnamed-chunk-1-1.png" width="672" />
+
 
 
 
