@@ -26,6 +26,8 @@ image:
 projects: []
 ---
 
+## Introduction
+
 From experience, managing who and who can't access data can become quite a sensitive topic, even within organizations. Having security requirements might led to creating multiple reports or to maintain excel spreadsheets which might be prone to human error.
 
 In this article I will be explaining how to implement RLS (row-level-security) in PowerBI reports, and how to create an easy tool to maintain it by leveraging the SharePoint infrastructure.
