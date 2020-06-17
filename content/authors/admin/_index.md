@@ -41,7 +41,7 @@ bio: Written by Oscar Toro. MsC in Economics, interested in economics, econometr
 social:
 - icon: envelope
   icon_pack: fas
-  link: '#contact'  # For a direct email link, use "mailto:test@example.org".
+  link: mailto:oscartoromalaga@outlook.com".
 - icon: twitter
   icon_pack: fab
   link: https://twitter.com/oscartorom
