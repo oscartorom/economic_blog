@@ -1,6 +1,6 @@
 ---
 # Display name
-#name: Oscar Toro
+name: Oscar Toro Malaga
 
 # Username (this should match the folder name)
 authors:
@@ -18,7 +18,7 @@ superuser: true
 #  url: ""
 
 # Short bio (displayed in user profile at end of posts)
-bio: Written by Oscar Toro. MsC in Economics, interested in economics, econometrics, and data-related projects.
+bio: Written by Oscar Toro. MsC in Economics.
 
 #interests:
 #- Economics
@@ -64,9 +64,4 @@ email: "oscartoromalaga@outlook.com"
 # - Visitors
 ---
 
-The one who turned the world.
-Economic analysis, events and policy implications and forecasting techniques. 
-
-The name comes from the Inka Pachacuti, he who overturns space and time, or the one who turned the world.
-We look to analyse and predict the impact of economic events and policies which could led to major changes in how people live, focusing on data driven analysis.
-The major contribution is explaining effects in an easy-digestible way while at the same time using comprehensive research techniques which validates the results obtained.
+Testing
