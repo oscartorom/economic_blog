@@ -64,4 +64,7 @@ email: "oscartoromalaga@outlook.com"
 # - Visitors
 ---
 
-Personal blog devoted to Economic and Data Analysis
+Personal blog devoted to Economic Analysis, process automation, using several tools like R, Python, SQL, the Microsoft Suite (PowerApps, Flow).
+
+
+
