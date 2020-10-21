@@ -64,4 +64,4 @@ email: "oscartoromalaga@outlook.com"
 # - Visitors
 ---
 
-Testing
+Personal blog devoted to Economic and Data Analysis
